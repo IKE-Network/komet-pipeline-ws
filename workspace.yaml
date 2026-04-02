@@ -9,7 +9,7 @@
 # and a branchable workspace model.
 #
 # Bootstrap:
-#   git clone https://github.com/knowledge-graphlet/komet-pipeline-ws.git
+#   git clone https://github.com/IKE-Network/komet-pipeline-ws.git
 #   cd komet-pipeline-ws
 #   mvn ike:init
 #   mvn clean install
