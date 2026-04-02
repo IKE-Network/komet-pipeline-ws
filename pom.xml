@@ -28,7 +28,7 @@
     <name>Komet Pipeline Workspace</name>
 
     <properties>
-        <ike-maven-plugin.version>47</ike-maven-plugin.version>
+        <ike-maven-plugin.version>49</ike-maven-plugin.version>
     </properties>
 
     <build>
