@@ -71,15 +71,40 @@ integration and git hooks are in place.
 
 === 1. Install or update Syncthing
 
-Install https://github.com/syncthing/syncthing-macos/releases[Syncthing
-for macOS] (v2.0.14+). Accept the shared `ike-dev` folder from the
-other machine if not already configured.
+Install Syncthing for your platform:
 
-Ensure `.stignore` exists:
+macOS::
+Install https://github.com/syncthing/syncthing-macos/releases[Syncthing
+for macOS] (v2.0.14+). The macOS app wraps the Syncthing daemon with a
+menu-bar icon and automatic startup.
+
+Windows::
+Install https://github.com/canton7/SyncTrayzor/releases[SyncTrayzor]
+(recommended) or the
+https://github.com/syncthing/syncthing/releases[standalone Syncthing
+binary]. SyncTrayzor provides a system-tray wrapper with auto-start and
+a built-in web UI. If using the standalone binary, consider running it
+as a Windows service via `nssm` or Task Scheduler.
+
+Linux::
+Install via your package manager (`apt install syncthing`,
+`dnf install syncthing`, etc.) or download the
+https://github.com/syncthing/syncthing/releases[binary]. Enable the
+systemd user service: `systemctl --user enable --now syncthing`.
+
+Accept the shared `ike-dev` folder from the other machine if not
+already configured. Set the local path to `~/ike-dev` (macOS/Linux)
+or `%USERPROFILE%\ike-dev` (Windows).
+
+Ensure `.stignore` exists at the root of the shared folder:
 
 [source,bash]
 ----
+# macOS / Linux:
 echo '#include stignore-shared' > ~/ike-dev/.stignore
+
+# Windows (PowerShell):
+Set-Content "$env:USERPROFILE\ike-dev\.stignore" '#include stignore-shared'
 ----
 
 [[stignore-changes]]
@@ -160,28 +185,147 @@ detection, and resolution guide.
 
 == Workspace Commands
 
-[cols="1,2", options="header"]
+All `ike:` goals are standard Maven goals and appear in the Maven
+tool window of IntelliJ IDEA (under _Plugins > ike_). You can
+double-click any goal to run it -- no command-line memorization
+required.
+
+=== Setup and Status
+
+[cols="1,3", options="header"]
 |===
-| Command | Description
+| Goal | Description
 
-| `mvn ike:init`
-| Clone all components; install wrappers and hooks.
+| `ike:init`
+| Clone all components from `workspace.yaml` in dependency order.
+  Installs Maven wrapper (for `defaults.maven-version`), creates
+  `.mvn/jvm.config`, and sets up post-checkout hooks per component.
+  Pass `-Dgroup=<name>` to restrict to a group or single component.
 
-| `mvn ike:status`
-| Git status across all components.
+| `ike:setup`
+| Install VCS bridge git hooks to `~/.git-hooks/` for Syncthing
+  coordination (pre-commit, post-commit, pre-push). Does not
+  overwrite existing hooks unless `-Dforce=true`.
 
-| `mvn ike:dashboard`
-| Full workspace health: manifest check, status, cascade.
+| `ike:status`
+| Show branch, short SHA, and clean/dirty status for each component.
+  Pass `-Dgroup=<name>` to restrict scope.
 
-| `mvn ike:pull`
-| `git pull --rebase` in dependency order.
+| `ike:dashboard`
+| Morning standup command: manifest health check, component status,
+  and cascade analysis (what needs rebuild) in one pass.
 
-| `mvn ike:ws-sync`
-| Sync workspace.yaml branches with actual git branches.
+| `ike:pull`
+| Run `git pull --rebase` across all components in dependency order.
+  Pass `-Dgroup=<name>` to restrict scope.
 
-| `mvn ike:graph`
-| Print dependency graph (text or Graphviz DOT).
+| `ike:graph`
+| Print the workspace dependency graph. Use `-Dformat=dot` for
+  Graphviz DOT output (default: text).
 
-| `mvn ike:ws-checkpoint -Dname=<name>`
-| Tag, build, deploy all components; record coordinates.
+| `ike:verify`
+| Verify manifest consistency: dangling dependencies, missing
+  components, cycle detection.
+
+| `ike:cascade`
+| Show which components are affected by changes in dirty components
+  (breadth-first dependency traversal).
+
+| `ike:stignore`
+| Generate deterministic `.stignore` files for the workspace and
+  each component. Ensures all machines converge on the same
+  Syncthing ignore configuration.
+
+| `ike:help`
+| List all available `ike:` goals with descriptions.
+|===
+
+=== Feature Branching
+
+Feature branches are coordinated across workspace components.
+`feature-start` creates `feature/<name>` branches with
+branch-qualified SNAPSHOT versions (e.g.,
+`1.2.0-my-feature-SNAPSHOT`), so artifacts from different features
+coexist safely in `~/.m2/repository`.
+
+[cols="1,3", options="header"]
+|===
+| Goal | Description
+
+| `ike:feature-start`
+| Start a coordinated feature branch. Prompts for the feature name
+  if `-Dfeature=<name>` is not provided. Creates branches, sets
+  branch-qualified versions, and updates `workspace.yaml`. Pass
+  `-Dgroup=<name>` to branch a subset of components.
+
+| `ike:feature-start-dry-run`
+| Preview what `feature-start` would do without executing.
+
+| `ike:feature-finish-squash`
+| **Default and recommended.** Squash-merge the feature branch to
+  the target (default: `main`). All feature commits become one clean
+  commit. Feature branch is deleted after merge (squash creates
+  divergent history). Prompts for a commit message if `-Dmessage`
+  is not provided.
+
+| `ike:feature-finish-merge`
+| No-fast-forward merge preserving full feature history. Feature
+  branch is kept by default -- it can continue to receive work and
+  be merged again later. Good for long-lived feature branches with
+  periodic intermediate merges.
+
+| `ike:feature-finish-rebase`
+| Rebase feature onto target, then fast-forward merge. Produces
+  linear history without a merge commit. Caution: rebasing rewrites
+  history -- other machines must run `ike:sync` afterward.
+|===
+
+All feature-finish goals accept `-Dfeature=<name>` (prompted if
+omitted), `-DtargetBranch=<branch>` (default: `main`),
+`-DkeepBranch=true|false`, and `-DdryRun=true`.
+
+=== Syncthing Synchronization
+
+[cols="1,3", options="header"]
+|===
+| Goal | Description
+
+| `ike:ws-sync`
+| Synchronize `workspace.yaml` with actual git branches.
+  `-Dfrom=repos` (default): update YAML from checked-out branches.
+  `-Dfrom=manifest`: switch repos to match YAML declarations.
+
+| `ike:sync`
+| Reconcile git state after Syncthing delivers changes from another
+  machine. Reads VCS state files, fetches, switches branches, and
+  soft-resets HEAD. Working tree is untouched -- Syncthing already
+  made it correct.
+|===
+
+=== Checkpointing and Release
+
+[cols="1,3", options="header"]
+|===
+| Goal | Description
+
+| `ike:ws-checkpoint`
+| Create a workspace checkpoint: build, tag, and deploy every
+  component in dependency order, then record coordinates in a YAML
+  file under `checkpoints/`. Prompts for the checkpoint name if
+  `-Dname=<name>` is not provided. A timestamp is added
+  automatically. Pass `-DskipVerify=true` to skip tests.
+
+| `ike:ws-checkpoint-dry-run`
+| Preview checkpoint without writing files or creating tags.
+
+| `ike:ws-release`
+| Release all dirty components in dependency order. Auto-detects
+  which components have commits since their last release tag.
+  After each release, updates parent/BOM versions in downstream
+  components. Pass `-DdryRun=true` to preview.
+
+| `ike:release`
+| Full release for a single component: build, deploy, tag, merge
+  back to main, and bump to next SNAPSHOT. All local git work
+  completes before external actions (deploy, push).
 |===
