@@ -65,13 +65,39 @@ mvn clean install   # <2>
 
 == Environment Setup
 
-If this is a new machine or a machine that hasn't been updated
-recently, perform these steps to ensure the latest Syncthing
-integration and git hooks are in place.
+=== 1. Run workspace upgrade
 
-=== 1. Install or update Syncthing
+[source,bash]
+----
+mvn ike:ws-upgrade
+----
 
-Install Syncthing for your platform:
+This brings the workspace in line with current conventions:
+global gitignore entries, plugin version, stignore flags, and
+other incremental improvements. Idempotent — safe to run repeatedly.
+
+=== 2. Run health check (Syncthing users only)
+
+[source,bash]
+----
+~/ike-dev/scripts/health-check.sh
+----
+
+Verify all checks pass. Address any warnings (typically stale
+`.sync-conflict-*` files).
+
+== Optional: Syncthing Multi-Machine Setup
+
+Syncthing enables real-time file synchronization between a developer's
+machines (e.g., desktop and laptop). This is **optional** — it is only
+needed if you develop on two machines and want uncommitted changes to
+propagate without committing to git. Skip this section if you work on
+a single machine.
+
+See link:SPLIT-BRAIN.adoc[SPLIT-BRAIN.adoc] for the full multi-machine
+architecture, prevention, and recovery guide.
+
+=== Install Syncthing
 
 macOS::
 Install https://github.com/syncthing/syncthing-macos/releases[Syncthing
@@ -83,8 +109,7 @@ Install https://github.com/canton7/SyncTrayzor/releases[SyncTrayzor]
 (recommended) or the
 https://github.com/syncthing/syncthing/releases[standalone Syncthing
 binary]. SyncTrayzor provides a system-tray wrapper with auto-start and
-a built-in web UI. If using the standalone binary, consider running it
-as a Windows service via `nssm` or Task Scheduler.
+a built-in web UI.
 
 Linux::
 Install via your package manager (`apt install syncthing`,
@@ -92,9 +117,11 @@ Install via your package manager (`apt install syncthing`,
 https://github.com/syncthing/syncthing/releases[binary]. Enable the
 systemd user service: `systemctl --user enable --now syncthing`.
 
-Accept the shared `ike-dev` folder from the other machine if not
-already configured. Set the local path to `~/ike-dev` (macOS/Linux)
-or `%USERPROFILE%\ike-dev` (Windows).
+Accept the shared `ike-dev` folder from the other machine. Set the
+local path to `~/ike-dev` (macOS/Linux) or `%USERPROFILE%\ike-dev`
+(Windows).
+
+=== Configure ignore rules
 
 Ensure `.stignore` exists at the root of the shared folder:
 
@@ -108,54 +135,23 @@ Set-Content "$env:USERPROFILE\ike-dev\.stignore" '#include stignore-shared'
 ----
 
 [[stignore-changes]]
-=== 2. Update stignore-shared
+The shared ignore rules use `(?d)` prefixes on directory patterns
+(`.git/`, `target/`). The `(?d)` flag tells Syncthing to delete
+ignored files when their parent directory is removed on the remote
+machine, preventing persistent "out of sync" errors. Run
+`mvn ike:ws-upgrade` to apply these flags if they are missing.
 
-The shared ignore rules now use `(?d)` prefixes. This file syncs
-automatically via Syncthing, but verify the update arrived:
-
-[source,bash]
-----
-head -5 ~/ike-dev/stignore-shared
-# Should show: (?d).git/ and (?d)target/
-----
-
-The `(?d)` flag solves a long-standing problem: when a project
-directory is deleted on one machine, Syncthing could not remove it on
-the other machine because it contained ignored files (`.git/`,
-`target/`). The deletion would block, leaving stale directories that
-caused persistent "out of sync" errors. With `(?d)`, Syncthing
-deletes the ignored files along with the parent directory.
-
-=== 3. Update git hooks
+=== Install git hooks and watcher
 
 [source,bash]
 ----
-~/ike-dev/scripts/setup-hooks.sh
+~/ike-dev/scripts/setup-hooks.sh      # Global post-checkout/post-merge hooks
+~/ike-dev/scripts/install-watcher.sh  # launchd agent for auto git-init
 ----
 
-This installs the global `post-checkout` and `post-merge` hooks that
-generate `_git-init.sh` scripts for cross-machine synchronization.
-
-=== 4. Install or update the watcher
-
-[source,bash]
-----
-~/ike-dev/scripts/install-watcher.sh
-----
-
-The watcher is a `launchd` agent that monitors `~/ike-dev/` for
-filesystem changes and automatically runs `_git-init.sh` scripts when
-new repos arrive via Syncthing. No manual step is needed after this.
-
-=== 5. Run health check
-
-[source,bash]
-----
-~/ike-dev/scripts/health-check.sh
-----
-
-Verify all checks pass. Address any warnings (typically stale
-`.sync-conflict-*` files).
+The hooks generate `_git-init.sh` scripts when you clone or checkout
+repos under `ike-dev/`. The watcher automatically runs these scripts
+when new repos arrive via Syncthing on the other machine.
 
 == Polyglot Flags
 
