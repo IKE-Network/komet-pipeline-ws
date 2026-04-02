@@ -311,9 +311,10 @@ omitted), `-DtargetBranch=<branch>` (default: `main`),
 | `ike:ws-checkpoint`
 | Create a workspace checkpoint: build, tag, and deploy every
   component in dependency order, then record coordinates in a YAML
-  file under `checkpoints/`. Prompts for the checkpoint name if
-  `-Dname=<name>` is not provided. A timestamp is added
-  automatically. Pass `-DskipVerify=true` to skip tests.
+  file under `checkpoints/`. The checkpoint name is auto-derived
+  from the workspace branch and a compact UTC timestamp (e.g.,
+  `main-20260402-143022`). Override with `-Dname=<label>` when a
+  custom name is needed. Pass `-DskipVerify=true` to skip tests.
 
 | `ike:ws-checkpoint-dry-run`
 | Preview checkpoint without writing files or creating tags.
