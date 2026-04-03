@@ -13,6 +13,8 @@
 !workspace.yaml
 !README.adoc
 !SPLIT-BRAIN.adoc
+!mvnw
+!mvnw.cmd
 
 # ── Whitelist workspace-owned directories ────────────────────────
 !.mvn/

@@ -28,7 +28,7 @@
     <name>Komet Pipeline Workspace</name>
 
     <properties>
-        <ike-tooling.version>49</ike-tooling.version>
+        <ike-tooling.version>51</ike-tooling.version>
     </properties>
 
     <build>
